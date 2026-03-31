@@ -1,119 +1,81 @@
-// =============================
-// 🚀 KUSTO SERVER (SAFE MODE)
-// =============================
-
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
+const express = require("express");
+const cors = require("cors");
 
 const app = express();
-app.use(cors());
-app.use(bodyParser.json());
 
-// =============================
-// 🔐 SEGURANÇA
-// =============================
+app.use(cors());
+app.use(express.json());
+
+// 🔐 TOKEN DE SEGURANÇA
 const TOKEN = "KUSTO_SECRET_123";
 
-// =============================
-// 📥 WEBHOOK VENDAS (LOJA)
-// =============================
+// 🔐 VALIDAÇÃO
+function checkAuth(req,res){
+var auth = req.headers["authorization"];
+if(auth !== TOKEN){
+res.status(403).send("Acesso negado");
+return false;
+}
+return true;
+}
 
-app.post('/webhook-vendas', (req, res) => {
+// LOGIN
+app.post("/login", (req, res) => {
+var user = req.body.user;
+var pass = req.body.pass;
 
-  try {
+if(user==="admin" && pass==="1234"){
+return res.json({ok:true,role:"admin"});
+}
 
-    const auth = req.headers.authorization;
+if(user==="operador" && pass==="1234"){
+return res.json({ok:true,role:"operador"});
+}
 
-    if (auth !== TOKEN) {
-      return res.status(403).send('Acesso negado');
-    }
-
-    const venda = req.body;
-
-    if (!venda || !venda.produto) {
-      return res.status(400).send('Dados inválidos');
-    }
-
-    console.log('✅ Venda recebida:', venda);
-
-    res.sendStatus(200);
-
-  } catch (e) {
-    console.error('Erro webhook vendas:', e);
-    res.sendStatus(500);
-  }
-
+res.json({ok:false});
 });
 
-// =============================
-// 📥 WEBHOOK DESCARGAS
-// =============================
+// BASE
+var dados = {
+loja: [],
+totalizadores: [],
+descargas: []
+};
 
-app.post('/webhook-descargas', (req, res) => {
-
-  try {
-
-    const auth = req.headers.authorization;
-
-    if (auth !== TOKEN) {
-      return res.status(403).send('Acesso negado');
-    }
-
-    const d = req.body;
-
-    console.log('⛽ Descarga recebida:', d);
-
-    res.sendStatus(200);
-
-  } catch (e) {
-    console.error('Erro webhook descargas:', e);
-    res.sendStatus(500);
-  }
-
+// VENDAS
+app.post("/webhook-vendas", (req,res)=>{
+if(!checkAuth(req,res)) return;
+dados.loja.push(req.body);
+res.json({ok:true});
 });
 
-// =============================
-// 📥 WEBHOOK TOTALIZADORES
-// =============================
-
-app.post('/webhook-totalizadores', (req, res) => {
-
-  try {
-
-    const auth = req.headers.authorization;
-
-    if (auth !== TOKEN) {
-      return res.status(403).send('Acesso negado');
-    }
-
-    const t = req.body;
-
-    console.log('📊 Totalizador recebido:', t);
-
-    res.sendStatus(200);
-
-  } catch (e) {
-    console.error('Erro webhook totalizadores:', e);
-    res.sendStatus(500);
-  }
-
+// TOTALIZADORES
+app.post("/webhook-totalizadores", (req,res)=>{
+if(!checkAuth(req,res)) return;
+dados.totalizadores.push(req.body);
+res.json({ok:true});
 });
 
-// =============================
-// ❤️ HEALTH CHECK
-// =============================
-
-app.get('/', (req, res) => {
-  res.send('KUSTO Webhook Server ON');
+// DESCARGAS
+app.post("/webhook-descargas", (req,res)=>{
+if(!checkAuth(req,res)) return;
+dados.descargas.push(req.body);
+res.json({ok:true});
 });
 
-// =============================
-// 🚀 START SERVER
-// =============================
+// API
+app.get("/", (req,res)=>{
+res.json(dados);
+});
 
+// STATUS
+app.get("/status",(req,res)=>{
+res.send("KUSTO SERVER SEGURO");
+});
+
+// START
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log('🔥 KUSTO SERVER ATIVO NA PORTA ' + PORT);
+app.listen(PORT, ()=>{
+console.log("KUSTO SERVER ATIVO " + PORT);
 });
