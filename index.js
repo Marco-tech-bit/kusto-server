@@ -1,81 +1,101 @@
 const express = require("express");
 const cors = require("cors");
+const rateLimit = require("express-rate-limit");
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "100kb" }));
 
-// 🔐 TOKEN DE SEGURANÇA
-const TOKEN = "KUSTO_SECRET_123";
-
-// 🔐 VALIDAÇÃO
-function checkAuth(req,res){
-var auth = req.headers["authorization"];
-if(auth !== TOKEN){
-res.status(403).send("Acesso negado");
-return false;
-}
-return true;
-}
-
-// LOGIN
-app.post("/login", (req, res) => {
-var user = req.body.user;
-var pass = req.body.pass;
-
-if(user==="admin" && pass==="1234"){
-return res.json({ok:true,role:"admin"});
-}
-
-if(user==="operador" && pass==="1234"){
-return res.json({ok:true,role:"operador"});
-}
-
-res.json({ok:false});
+// 🔒 RATE LIMIT (ANTI-ATAQUE)
+const limiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 100
 });
+app.use(limiter);
 
-// BASE
-var dados = {
-loja: [],
-totalizadores: [],
-descargas: []
+// 🔒 TOKEN OBRIGATÓRIO (SEM FALLBACK)
+if (!process.env.TOKEN) {
+    console.error("❌ TOKEN NÃO DEFINIDO NO RENDER");
+    process.exit(1);
+}
+
+const TOKEN = process.env.TOKEN;
+
+// 🔒 LOG DE SEGURANÇA
+function logSecurity(req) {
+    console.log("🔐 IP:", req.ip, "| TIME:", new Date().toISOString());
+}
+
+// 🔒 AUTH MIDDLEWARE
+function checkAuth(req, res, next) {
+    const auth = req.headers["authorization"];
+
+    logSecurity(req);
+
+    if (!auth) {
+        return res.status(401).json({ erro: "Sem token" });
+    }
+
+    if (auth !== TOKEN) {
+        return res.status(403).json({ erro: "Token inválido" });
+    }
+
+    next();
+}
+
+// 🧠 BASE TEMPORÁRIA (CONTROLADA)
+let dados = {
+    registros: []
 };
 
-// VENDAS
-app.post("/webhook-vendas", (req,res)=>{
-if(!checkAuth(req,res)) return;
-dados.loja.push(req.body);
-res.json({ok:true});
+// 🚀 ENDPOINT PRINCIPAL (KUSTO)
+app.post("/kusto-data", checkAuth, function (req, res) {
+
+    // 🔒 VALIDAR CONTENT-TYPE
+    if (req.headers["content-type"] !== "application/json") {
+        return res.status(400).json({ erro: "Content-Type inválido" });
+    }
+
+    // 🔒 VALIDAR BODY
+    if (!req.body || typeof req.body !== "object") {
+        return res.status(400).json({ erro: "Dados inválidos" });
+    }
+
+    // 🔒 PROTEÇÃO PAYLOAD
+    if (JSON.stringify(req.body).length > 100000) {
+        return res.status(413).json({ erro: "Payload muito grande" });
+    }
+
+    const payload = {
+        data: new Date().toISOString(),
+        origem: req.ip,
+        conteudo: req.body
+    };
+
+    dados.registros.push(payload);
+
+    console.log("📥 DADOS RECEBIDOS:");
+    console.log(payload);
+
+    res.json({ ok: true });
 });
 
-// TOTALIZADORES
-app.post("/webhook-totalizadores", (req,res)=>{
-if(!checkAuth(req,res)) return;
-dados.totalizadores.push(req.body);
-res.json({ok:true});
+// 🔍 CONSULTA PROTEGIDA
+app.get("/kusto-data", checkAuth, function (req, res) {
+    res.json(dados);
 });
 
-// DESCARGAS
-app.post("/webhook-descargas", (req,res)=>{
-if(!checkAuth(req,res)) return;
-dados.descargas.push(req.body);
-res.json({ok:true});
+// 🟢 STATUS SERVER
+app.get("/status", function (req, res) {
+    res.send("KUSTO SERVER SEGURO ATIVO");
 });
 
-// API
-app.get("/", (req,res)=>{
-res.json(dados);
-});
-
-// STATUS
-app.get("/status",(req,res)=>{
-res.send("KUSTO SERVER SEGURO");
-});
-
-// START
+// 🚀 START
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, ()=>{
-console.log("KUSTO SERVER ATIVO " + PORT);
+app.listen(PORT, function () {
+    console.log("🚀 KUSTO SERVER ATIVO NA PORTA " + PORT);
 });
