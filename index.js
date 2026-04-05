@@ -73,7 +73,7 @@ return true;
 // ================= AUTH =================
 function auth(req,res,next){
 
-var token = req.headers["authorization"];
+var token = req.headers["authorization"] || req.headers["Authorization"];
 
 if(!token){
 console.log("❌ TOKEN AUSENTE");
@@ -85,6 +85,8 @@ console.log("❌ TOKEN INVÁLIDO:", token);
 return res.status(403).json({ok:false,erro:"invalid_token"});
 }
 
+next();
+}
 next();
 }
 
