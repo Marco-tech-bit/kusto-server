@@ -87,8 +87,6 @@ return res.status(403).json({ok:false,erro:"invalid_token"});
 
 next();
 }
-next();
-}
 
 // ================= STATUS =================
 app.get("/status",(req,res)=>{
