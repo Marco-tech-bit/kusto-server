@@ -4,6 +4,18 @@ const path = require("path");
 
 const app = express();
 
+app.use(function(req,res,next){
+res.header("Access-Control-Allow-Origin","*");
+res.header("Access-Control-Allow-Headers","Origin, X-Requested-With, Content-Type, Accept, Authorization");
+res.header("Access-Control-Allow-Methods","GET,POST,OPTIONS");
+
+if(req.method === "OPTIONS"){
+return res.sendStatus(200);
+}
+
+next();
+});
+
 // ================= CONFIG =================
 const PORT = process.env.PORT || 10000;
 const TOKEN = process.env.TOKEN || "KUSTO_SECURE_DEFAULT";
