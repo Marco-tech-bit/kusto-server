@@ -3,25 +3,26 @@ const fs = require("fs");
 const path = require("path");
 
 const app = express();
-app.use(function(req,res,next){
-res.header("Access-Control-Allow-Origin","*");
-res.header("Access-Control-Allow-Headers","Origin, X-Requested-With, Content-Type, Accept, Authorization");
-next();
-});
 
 // ================= CONFIG =================
 const PORT = process.env.PORT || 10000;
-const TOKEN = process.env.TOKEN || "KUSTO_SECURE_DEFAULT";
+const TOKEN = process.env.TOKEN || "KUSTO_9Xff82!Secure2026";
 
-// 🔒 Limite payload
+// ================= MIDDLEWARE =================
+
+// JSON
 app.use(express.json({limit:"1mb"}));
 
-// 🔒 CORS (necessário para browser)
+// CORS LIMPO
 app.use(function(req,res,next){
 res.header("Access-Control-Allow-Origin","*");
 res.header("Access-Control-Allow-Headers","Origin, X-Requested-With, Content-Type, Accept, Authorization");
 res.header("Access-Control-Allow-Methods","GET,POST,OPTIONS");
-if(req.method === "OPTIONS"){ return res.sendStatus(200); }
+
+if(req.method === "OPTIONS"){
+return res.sendStatus(200);
+}
+
 next();
 });
 
@@ -37,27 +38,22 @@ fs.writeFileSync(DB_FILE, JSON.stringify({registos:[]}, null, 2));
 }
 return JSON.parse(fs.readFileSync(DB_FILE));
 }catch(e){
-console.log("⚠ ERRO DB LOAD, criando novo:", e);
+console.log("⚠ ERRO DB LOAD:", e);
 return {registos:[]};
 }
 }
 
-// 🔥 BACKUP AUTOMÁTICO
 function salvarDB(db){
 try{
 
-// guarda principal
 fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-
-// guarda backup (sempre atualizado)
 fs.writeFileSync(BACKUP_FILE, JSON.stringify(db, null, 2));
 
-// snapshot de segurança (1 por hora)
 var hora = new Date().toISOString().slice(0,13).replace(/:/g,"-");
-var SNAP_FILE = path.join(__dirname,"snap-"+hora+".json");
+var snap = path.join(__dirname,"snap-"+hora+".json");
 
-if(!fs.existsSync(SNAP_FILE)){
-fs.writeFileSync(SNAP_FILE, JSON.stringify(db, null, 2));
+if(!fs.existsSync(snap)){
+fs.writeFileSync(snap, JSON.stringify(db, null, 2));
 }
 
 }catch(e){
@@ -80,7 +76,7 @@ return now - t < 60000;
 
 if(requests[ip].length > 60){
 console.log("🚫 RATE LIMIT:", ip);
-return res.status(429).json({ok:false,erro:"too_many_requests"});
+return res.status(429).json({ok:false});
 }
 
 requests[ip].push(now);
@@ -98,13 +94,16 @@ if(typeof body.vendas !== "number") return false;
 if(typeof body.descargas !== "number") return false;
 if(typeof body.tanques !== "object") return false;
 
+// 🔥 EXTRA SEGURANÇA
+if(body.vendas < 0 || body.descargas < 0) return false;
+
 return true;
 }
 
 // ================= AUTH =================
 function auth(req,res,next){
 
-var token = req.headers["authorization"] || req.headers["Authorization"];
+var token = req.headers["authorization"];
 
 if(!token){
 console.log("❌ TOKEN AUSENTE");
@@ -147,12 +146,8 @@ ip: req.ip,
 conteudo: req.body
 };
 
-// 🔥 NÃO APAGA MAIS HISTÓRICO (REMOVIDO SHIFT)
-// apenas limita de forma segura (opcional futuro)
-
 db.registos.push(novo);
 
-// guardar com backup
 salvarDB(db);
 
 console.log("✅ DADOS GUARDADOS:", novo.id);
@@ -179,5 +174,5 @@ dados:db.registos
 
 // ================= START =================
 app.listen(PORT,()=>{
-console.log("🚀 KUSTO SERVER BLINDADO NA PORTA",PORT);
+console.log("🚀 KUSTO SERVER ATIVO NA PORTA",PORT);
 });
